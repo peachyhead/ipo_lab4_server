@@ -7,9 +7,6 @@ import java.io.*;
 import java.util.List;
 import java.util.stream.Stream;
 
-import static handler.XMLHandler.getXMLFromImage;
-import static handler.XMLHandler.saveImageFromXMLData;
-
 public class ClientRequestProcessor {
     
     private final String clientID;
@@ -27,10 +24,10 @@ public class ClientRequestProcessor {
 
     public void process(String request, List<String> args) throws IOException {
         var mediaID = args.getFirst();
-        if (request.equals(ClientRequestCode.imageSend)) {
+        if (request.equals(ClientRequestCode.visualSend)) {
             if (onImageSend(args, mediaID)) return;
         }
-        if (request.equals(ClientRequestCode.imageUpload)) {
+        if (request.equals(ClientRequestCode.visualUpload)) {
             if (onImageUpload(args, mediaID)) return;
         }
         if (request.equals(ClientRequestCode.clientHandshake)) {
@@ -52,16 +49,16 @@ public class ClientRequestProcessor {
             ids.append(id).append(",");
         }
         ids.append(args.getFirst());
-        var inline = String.format("%s|%s", ClientRequestCode.clientsUpdate, ids);
-        client.get().send(inline);
+        var data = String.format("%s|%s", ClientRequestCode.clientsUpdate, ids);
+        client.get().send(data);
     }
 
     private boolean onClientHandshake() throws IOException {
         var client = handlerStorage.stream()
                 .filter(item -> item.getId().equals(clientID)).findFirst();
         if (client.isEmpty()) return true;
-        var inline = String.format("%s|%s", ClientRequestCode.clientHandshake, clientID);
-        client.get().send(inline);
+        var data = String.format("%s|%s", ClientRequestCode.clientHandshake, clientID);
+        client.get().send(data);
         return false;
     }
 
@@ -69,7 +66,7 @@ public class ClientRequestProcessor {
         var client = handlerStorage.stream()
                 .filter(item -> item.getId().equals(clientID)).findFirst();
         if (client.isEmpty()) return true;
-        var inline = String.format("%s|%s", ClientRequestCode.imageLoadedOnServer, mediaID);
+        var inline = String.format("%s|%s", ClientRequestCode.visualLoadedOnServer, mediaID);
 
         if (resolveMedia(mediaID).findFirst().isPresent()) {
             client.get().send(inline);
@@ -90,10 +87,11 @@ public class ClientRequestProcessor {
         if (client.isEmpty()) return true;
         var media = resolveMedia(mediaID).findFirst();
         if (media.isEmpty()) return true;
-        var data = getXMLFromImage(mediaID);
-        var inline = String.format("%s|%s|%s|%s", ClientRequestCode.imageReceive, 
-                clientID, mediaID, data);
-        client.get().send(inline);
+        var visual = mediaStorage.stream().filter(item -> item.id().equals(mediaID)).findFirst();
+        if (visual.isEmpty()) return true;
+        var data = String.format("%s|%s|%s|%s", ClientRequestCode.visualReceive, 
+                clientID, mediaID, visual.get().data());
+        client.get().send(data);
         return false;
     }
 
@@ -103,11 +101,10 @@ public class ClientRequestProcessor {
     
     private void setupMedia(String id, String ownerID, String data) {
         var duplicate = mediaStorage.stream()
-                .filter(item -> item.path().equals(data)).findFirst();
+                .filter(item -> item.data().equals(data)).findFirst();
         if (duplicate.isPresent()) return;
 
-        var media = new MediaModel(id, ownerID, id);
-        saveImageFromXMLData(data, id);
+        var media = new MediaModel(id, ownerID, data);
         mediaStorage.add(media);
     }
 }
